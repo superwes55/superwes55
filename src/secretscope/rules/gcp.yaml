@@ -1,0 +1,37 @@
+rules:
+  - id: gcp_api_key
+    name: GCP API Key
+    pattern: '(AIza[0-9A-Za-z\-_]{35})'
+    severity: high
+    description: >
+      Google Cloud Platform API key. May grant access to Maps, Translation,
+      Vision, or other GCP services depending on restrictions applied.
+    tags: [gcp, google, api-key]
+    example: AIzaSyBFAKEEXAMPLEKEYVALUEHERE12345678
+
+  - id: gcp_oauth_client_id
+    name: GCP OAuth Client ID
+    pattern: '([0-9]{12,}-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com)'
+    severity: low
+    description: >
+      Google OAuth 2.0 client ID. Low risk on its own — it's semi-public —
+      but identifies the application and is useful for further recon.
+    tags: [gcp, google, oauth]
+
+  - id: firebase_database_url
+    name: Firebase Realtime Database URL
+    pattern: '(https://[a-z0-9][a-z0-9-]{1,28}[a-z0-9]\.(?:firebaseio\.com|firebasedatabase\.app)(?:/[^\s"''`>]*)?)'
+    severity: low
+    description: >
+      Firebase Realtime Database URL. Check whether public read is enabled —
+      unauthenticated reads are a common misconfiguration.
+    tags: [gcp, firebase]
+
+  - id: gcp_service_account_private_key
+    name: GCP Service Account Private Key (JSON)
+    pattern: '"private_key"\s*:\s*"(-----BEGIN [A-Z ]+ PRIVATE KEY-----[^"]+-----END [A-Z ]+ PRIVATE KEY-----)'
+    severity: critical
+    description: >
+      GCP service account private key found embedded in JSON. This grants
+      full programmatic access as the associated service account.
+    tags: [gcp, google, service-account, private-key]

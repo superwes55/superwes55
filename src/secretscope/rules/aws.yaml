@@ -1,0 +1,32 @@
+rules:
+  - id: aws_access_key_id
+    name: AWS Access Key ID
+    pattern: '(?<![A-Z0-9])((?:AKIA|AGPA|AIPA|ANPA|ANVA|AROA|ASCA|ASIA)[A-Z0-9]{16})(?![A-Z0-9])'
+    severity: critical
+    description: >
+      AWS IAM Access Key ID exposed in client-side code. Combined with the
+      corresponding secret key, this grants programmatic AWS access.
+    tags: [aws, iam, credentials]
+    example: "AKIA<16-uppercase-alphanumeric>"
+
+  - id: aws_secret_access_key
+    name: AWS Secret Access Key
+    pattern: '(?i)(?:aws)?[_\-\s.]*secret[_\-\s.]*(?:access[_\-\s.]*)?key[_\-\s.]*[=:]\s*["\x27]?([A-Za-z0-9/+=]{40})["\x27]?'
+    entropy_threshold: 4.5
+    severity: critical
+    description: >
+      AWS Secret Access Key found in a secret-key context. High-entropy 40-char
+      base64 string adjacent to a key-naming token.
+    tags: [aws, iam, credentials]
+    example: "<40-char-base64-string>"
+
+  - id: aws_session_token
+    name: AWS Session Token
+    pattern: '(?i)(?:aws[_\-\s.]*)?session[_\-\s.]*token[_\-\s.]*[=:]\s*["\x27]?([A-Za-z0-9/+=]{100,})'
+    entropy_threshold: 4.5
+    severity: high
+    description: >
+      AWS temporary session token (from STS). Grants scoped, time-limited AWS
+      access. Shorter lived than permanent credentials but still sensitive.
+    tags: [aws, iam, sts, credentials]
+    example: AQoXnyc4lcK4wFAKEEXAMPLETOKENVALUEHERE

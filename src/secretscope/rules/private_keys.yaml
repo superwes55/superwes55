@@ -1,0 +1,44 @@
+rules:
+  - id: private_key_pkcs8
+    name: PKCS#8 Private Key
+    pattern: '(-----BEGIN PRIVATE KEY-----[A-Za-z0-9+/=\s]+-----END PRIVATE KEY-----)'
+    severity: critical
+    description: >
+      Unencrypted PKCS#8 private key. Can be used to impersonate TLS certificates
+      or sign arbitrary data depending on how it is deployed.
+    tags: [pki, private-key, tls, pkcs8]
+
+  - id: rsa_private_key
+    name: RSA Private Key (PKCS#1)
+    pattern: '(-----BEGIN RSA PRIVATE KEY-----[A-Za-z0-9+/=\s]+-----END RSA PRIVATE KEY-----)'
+    severity: critical
+    description: >
+      RSA private key in PKCS#1 format. Exposure allows decryption of traffic
+      protected by the corresponding certificate or message forgery.
+    tags: [pki, rsa, private-key, tls]
+
+  - id: ec_private_key
+    name: EC Private Key
+    pattern: '(-----BEGIN EC PRIVATE KEY-----[A-Za-z0-9+/=\s]+-----END EC PRIVATE KEY-----)'
+    severity: critical
+    description: >
+      Elliptic-curve private key. Used in ECDSA signatures and ECDH key exchange.
+    tags: [pki, ec, private-key, tls]
+
+  - id: openssh_private_key
+    name: OpenSSH Private Key
+    pattern: '(-----BEGIN OPENSSH PRIVATE KEY-----[A-Za-z0-9+/=\s]+-----END OPENSSH PRIVATE KEY-----)'
+    severity: critical
+    description: >
+      OpenSSH private key (modern format). Grants SSH access to any system
+      that trusts the corresponding public key.
+    tags: [ssh, private-key]
+
+  - id: pgp_private_key
+    name: PGP Private Key Block
+    pattern: '(-----BEGIN PGP PRIVATE KEY BLOCK-----[A-Za-z0-9+/=\s]+-----END PGP PRIVATE KEY BLOCK-----)'
+    severity: critical
+    description: >
+      PGP private key block. Allows decrypting PGP-encrypted messages or
+      forging signatures attributed to the key owner.
+    tags: [pgp, private-key]

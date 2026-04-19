@@ -1,0 +1,148 @@
+rules:
+  - id: github_personal_access_token
+    name: GitHub Personal Access Token
+    pattern: '(gh[pousr]_[A-Za-z0-9_]{36,255})'
+    severity: critical
+    description: >
+      GitHub Personal Access Token (classic: ghp_, fine-grained: github_pat_,
+      OAuth: gho_, user-to-server: ghu_, server-to-server: ghs_).
+      May grant repository read/write, org admin, or package registry access.
+    tags: [github, token, vcs]
+    example: "ghp_<36-char-alphanumeric-token>"
+
+  - id: github_app_fine_grained_token
+    name: GitHub App Fine-Grained Token
+    pattern: '(github_pat_[A-Za-z0-9_]{82})'
+    severity: critical
+    description: >
+      GitHub App fine-grained personal access token with precise repository
+      and permission scope.
+    tags: [github, token, vcs]
+
+  - id: slack_bot_token
+    name: Slack Bot Token
+    pattern: '(xoxb-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9]{24,})'
+    severity: critical
+    description: >
+      Slack bot OAuth token. Allows posting messages, reading channel history,
+      and other bot-scoped actions in the workspace.
+    tags: [slack, token, messaging]
+    example: "xoxb-<workspace-id>-<team-id>-<24-char-token>"
+
+  - id: slack_user_token
+    name: Slack User OAuth Token
+    pattern: '(xoxp-[0-9]{10,13}-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9]{32,})'
+    severity: critical
+    description: >
+      Slack user OAuth token granting access as a real workspace user, including
+      reading DMs if the user:history scope is present.
+    tags: [slack, token, messaging]
+
+  - id: slack_app_token
+    name: Slack App-Level Token
+    pattern: '(xapp-[0-9]+-[A-Z0-9]+-[A-Za-z0-9]+)'
+    severity: high
+    description: >
+      Slack app-level token used for Socket Mode or org-wide installations.
+    tags: [slack, token, messaging]
+
+  - id: slack_webhook_url
+    name: Slack Incoming Webhook URL
+    pattern: '(https://hooks\.slack\.com/services/T[A-Z0-9]{8,}/B[A-Z0-9]{8,}/[A-Za-z0-9]{24,})'
+    severity: high
+    description: >
+      Slack incoming webhook URL. Anyone with this URL can post messages to
+      the configured channel without authentication.
+    tags: [slack, webhook, messaging]
+
+  - id: stripe_secret_key
+    name: Stripe Secret API Key
+    pattern: '(sk_(?:live|test)_[A-Za-z0-9]{24,})'
+    severity: critical
+    description: >
+      Stripe secret API key. Grants full access to charges, customers, refunds,
+      payouts, and payment data. live_ keys affect real money.
+    tags: [stripe, payment, api-key]
+    example: "sk_live_<24-plus-alphanumeric-chars>"
+
+  - id: stripe_publishable_key
+    name: Stripe Publishable Key
+    pattern: '(pk_(?:live|test)_[A-Za-z0-9]{24,})'
+    severity: medium
+    description: >
+      Stripe publishable key. Intended for client-side use, so its presence
+      is expected. Still confirms Stripe usage and live vs. test environment.
+    tags: [stripe, payment, api-key]
+
+  - id: stripe_restricted_key
+    name: Stripe Restricted API Key
+    pattern: '(rk_(?:live|test)_[A-Za-z0-9]{24,})'
+    severity: high
+    description: >
+      Stripe restricted API key with scoped permissions. Treat as sensitive —
+      scope depends on configuration.
+    tags: [stripe, payment, api-key]
+
+  - id: sendgrid_api_key
+    name: SendGrid API Key
+    pattern: '(SG\.[A-Za-z0-9_\-]{22}\.[A-Za-z0-9_\-]{43})'
+    severity: critical
+    description: >
+      SendGrid API key. Grants the ability to send email as the account,
+      manage templates, and access contact lists.
+    tags: [sendgrid, email, api-key]
+
+  - id: twilio_account_sid
+    name: Twilio Account SID
+    pattern: '(?<![A-Za-z0-9])(AC[0-9a-f]{32})(?![0-9a-f])'
+    severity: medium
+    description: >
+      Twilio Account SID. Not a credential on its own, but necessary alongside
+      the auth token to authenticate Twilio API calls.
+    tags: [twilio, telephony]
+
+  - id: twilio_auth_token
+    name: Twilio Auth Token
+    pattern: '(?i)(?:twilio[_\-\s.]*)?auth[_\-\s.]*token\s*[=:"''`\s]+([0-9a-f]{32})(?![0-9a-f])'
+    entropy_threshold: 3.5
+    severity: critical
+    description: >
+      Twilio Auth Token. Combined with the Account SID, grants full API access
+      including SMS, voice, and account management.
+    tags: [twilio, telephony, credentials]
+
+  - id: mailgun_api_key
+    name: Mailgun API Key
+    pattern: '(key-[0-9a-z]{32})(?![0-9a-z])'
+    severity: critical
+    description: >
+      Mailgun API key. Grants the ability to send, receive, and manage email
+      via the Mailgun API.
+    tags: [mailgun, email, api-key]
+
+  - id: mailchimp_api_key
+    name: Mailchimp API Key
+    pattern: '([0-9a-f]{32}-us[0-9]{1,2})(?![0-9a-f\-])'
+    entropy_threshold: 3.5
+    severity: critical
+    description: >
+      Mailchimp API key. Grants access to mailing lists, campaigns, and
+      subscriber data.
+    tags: [mailchimp, email, api-key]
+
+  - id: npm_access_token
+    name: NPM Access Token
+    pattern: '(npm_[A-Za-z0-9]{36})(?![A-Za-z0-9])'
+    severity: critical
+    description: >
+      NPM access token. May grant publish rights to npm packages, which could
+      enable supply-chain attacks if abused.
+    tags: [npm, package-registry, token]
+
+  - id: pypi_api_token
+    name: PyPI API Token
+    pattern: '(pypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{50,})'
+    severity: critical
+    description: >
+      PyPI API token. Grants publish rights to Python packages on PyPI.
+    tags: [pypi, package-registry, token]

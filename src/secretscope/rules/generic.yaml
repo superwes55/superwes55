@@ -1,0 +1,43 @@
+rules:
+  - id: password_in_url
+    name: Password Embedded in URL
+    pattern: '((?:https?|ftp|jdbc|mongodb(?:\+srv)?|redis|postgresql|mysql)://[^:\s@/]{1,128}:[^@\s]{4,256}@[^\s"''`>\]]{4,})'
+    severity: high
+    description: >
+      Credential found embedded in a URL (connection string, proxy config, etc.).
+      Common in database URLs, Redis URIs, and JDBC connection strings.
+    tags: [generic, password, url, credentials]
+
+  - id: generic_secret_assignment
+    name: Generic Secret Assignment
+    pattern: '(?i)(?:secret|password|passwd|pwd|token|api[_\-]?key|auth[_\-]?key|access[_\-]?key|private[_\-]?key)[_\-\s.]*[=:]\s*"([^\s"]{12,})"'
+    entropy_threshold: 3.8
+    severity: medium
+    description: >
+      High-entropy string assigned to a variable or JSON key with a
+      secret-sounding name. Catches catch-all patterns not covered by
+      vendor-specific rules.
+    tags: [generic, credentials]
+
+  - id: high_entropy_base64
+    name: High-Entropy Base64 String
+    pattern: '(?<![A-Za-z0-9+/=])([A-Za-z0-9+/]{40,}={0,2})(?![A-Za-z0-9+/=])'
+    entropy_threshold: 5.0
+    min_length: 40
+    severity: low
+    description: >
+      Long, high-entropy base64 string that does not match a more specific rule.
+      May be a key, token, or credential — warrants manual review.
+    tags: [generic, entropy, base64]
+
+  - id: high_entropy_hex
+    name: High-Entropy Hex String
+    pattern: '(?<![0-9a-fA-F])([0-9a-fA-F]{32,64})(?![0-9a-fA-F])'
+    entropy_threshold: 3.5
+    min_length: 32
+    severity: low
+    description: >
+      Long, high-entropy hex string. May be an API token, session ID, or
+      cryptographic key. Short hex hashes (MD5/SHA) are also caught; filter
+      by context if false-positive rate is high.
+    tags: [generic, entropy, hex]

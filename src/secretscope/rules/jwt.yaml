@@ -1,0 +1,12 @@
+rules:
+  - id: jwt_token
+    name: JSON Web Token (JWT)
+    pattern: '(eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,})'
+    min_length: 50
+    severity: high
+    description: >
+      JSON Web Token found in client-side code. May contain sensitive claims
+      (user ID, roles, email) and — if using a symmetric algorithm — could
+      allow forgery if the secret is weak.
+    tags: [jwt, auth, token]
+    example: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.FAKE_SIGNATURE_HERE
