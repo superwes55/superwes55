@@ -47,6 +47,7 @@ dev = [
 include = [
     "/src/**/*.py",
     "/src/**/*.yaml",
+    "/src/**/*.html",
 ]
 
 [tool.hatch.build.targets.wheel]

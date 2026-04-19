@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecretScope Report — {{ target_url }}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f6f8fa;
+    color: #24292f;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  a { color: #0969da; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Layout */
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  /* Header */
+  header { background: #0d1117; color: #e6edf3; padding: 24px; margin-bottom: 24px; }
+  header h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  header h1 span { color: #58a6ff; }
+  .meta { display: flex; gap: 24px; flex-wrap: wrap; font-size: 13px; color: #8b949e; }
+  .meta strong { color: #e6edf3; }
+
+  /* Disclaimer */
+  .disclaimer-banner {
+    background: #fff8c5;
+    border: 1px solid #d4a72c;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #633c00;
+  }
+
+  /* Summary cards */
+  .summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .card {
+    flex: 1; min-width: 100px; border-radius: 8px; padding: 16px 20px;
+    border: 1px solid; text-align: center; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .card:hover { opacity: 0.85; }
+  .card .count { font-size: 32px; font-weight: 700; line-height: 1; }
+  .card .label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+  .card.all    { background: #f6f8fa; border-color: #d0d7de; color: #24292f; }
+  .card.critical { background: #fff0ee; border-color: #ffa198; color: #a40010; }
+  .card.high   { background: #fff8c5; border-color: #d4a72c; color: #633c00; }
+  .card.medium { background: #ddf4ff; border-color: #54aeff; color: #0349b4; }
+  .card.low    { background: #dafbe1; border-color: #4ac26b; color: #116329; }
+
+  /* Filter bar */
+  .filter-bar { margin-bottom: 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .filter-bar label { font-size: 13px; color: #57606a; font-weight: 600; }
+  .filter-btn {
+    padding: 5px 12px; border-radius: 20px; border: 1px solid #d0d7de;
+    background: #f6f8fa; cursor: pointer; font-size: 13px; font-weight: 500;
+    color: #24292f; transition: background 0.1s;
+  }
+  .filter-btn:hover { background: #e1e4e8; }
+  .filter-btn.active { background: #0969da; color: white; border-color: #0969da; }
+  .search-box {
+    margin-left: auto; padding: 5px 10px; border: 1px solid #d0d7de;
+    border-radius: 6px; font-size: 13px; width: 220px;
+    background: #fff;
+  }
+
+  /* Table */
+  .findings-section { background: white; border: 1px solid #d0d7de; border-radius: 8px; overflow: hidden; }
+  .findings-section h2 { padding: 12px 16px; border-bottom: 1px solid #d0d7de; font-size: 15px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: #f6f8fa; }
+  th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600;
+       text-transform: uppercase; letter-spacing: 0.5px; color: #57606a;
+       border-bottom: 1px solid #d0d7de; white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f6f8fa; }
+
+  /* Badges */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .badge.critical { background: #ffd7d5; color: #6e011a; }
+  .badge.high     { background: #fff3c4; color: #633c00; }
+  .badge.medium   { background: #cce5ff; color: #002d69; }
+  .badge.low      { background: #d2f5e3; color: #0a4421; }
+
+  /* Source type pills */
+  .source-pill {
+    display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px;
+    font-family: monospace; background: #f0f0f0; color: #555; margin-left: 4px;
+    white-space: nowrap;
+  }
+
+  /* Match display */
+  .match-cell { max-width: 240px; }
+  .match-code {
+    display: inline-block; font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px; background: #f6f8fa; border: 1px solid #e1e4e8;
+    border-radius: 4px; padding: 2px 6px; word-break: break-all; max-width: 220px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: help;
+  }
+  .match-code:hover { white-space: normal; overflow: visible; }
+
+  /* Context snippet */
+  .ctx-toggle { background: none; border: none; cursor: pointer; color: #0969da;
+                font-size: 12px; padding: 0; }
+  .ctx-toggle:hover { text-decoration: underline; }
+  .ctx-block { display: none; margin-top: 8px; }
+  .ctx-block.open { display: block; }
+  pre.ctx {
+    font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px;
+    background: #0d1117; color: #e6edf3; padding: 10px 12px; border-radius: 6px;
+    overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+    max-width: 480px; max-height: 200px; overflow-y: auto;
+    line-height: 1.4;
+  }
+
+  /* Source URL */
+  .src-url { max-width: 280px; word-break: break-all; font-size: 12px; }
+  .src-url a { color: #0969da; }
+
+  /* Empty state */
+  .empty { padding: 48px; text-align: center; color: #57606a; }
+  .empty .icon { font-size: 48px; margin-bottom: 12px; }
+
+  /* Footer */
+  footer { margin-top: 32px; text-align: center; font-size: 12px; color: #8b949e; }
+  footer a { color: #8b949e; }
+
+  /* Hidden rows */
+  .finding-row.hidden { display: none; }
+
+  /* No results message */
+  #no-results { display: none; padding: 24px; text-align: center; color: #57606a; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <h1>🔍 <span>SecretScope</span> Security Report</h1>
+    <div class="meta">
+      <span>Target: <strong>{{ target_url }}</strong></span>
+      <span>Pages scanned: <strong>{{ pages_scanned }}</strong></span>
+      <span>Duration: <strong>{{ scan_duration_seconds }}s</strong></span>
+      <span>Generated: <strong>{{ timestamp }}</strong></span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="disclaimer-banner">
+    ⚠️ <strong>Authorized use only.</strong> This report may contain sensitive information.
+    Handle securely and share only with authorized parties. SecretScope performs passive,
+    externally observable analysis only and must not be used without permission.
+  </div>
+
+  <!-- Summary -->
+  <div class="summary">
+    <div class="card all"    onclick="setFilter('all',    this)">
+      <div class="count">{{ summary.total }}</div>
+      <div class="label">Total</div>
+    </div>
+    <div class="card critical" onclick="setFilter('critical', this)">
+      <div class="count">{{ summary.by_severity.critical }}</div>
+      <div class="label">Critical</div>
+    </div>
+    <div class="card high"   onclick="setFilter('high',   this)">
+      <div class="count">{{ summary.by_severity.high }}</div>
+      <div class="label">High</div>
+    </div>
+    <div class="card medium" onclick="setFilter('medium', this)">
+      <div class="count">{{ summary.by_severity.medium }}</div>
+      <div class="label">Medium</div>
+    </div>
+    <div class="card low"    onclick="setFilter('low',    this)">
+      <div class="count">{{ summary.by_severity.low }}</div>
+      <div class="label">Low</div>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <label>Filter:</label>
+    <button class="filter-btn active" data-sev="all"      onclick="setFilter('all',      this)">All</button>
+    <button class="filter-btn"        data-sev="critical" onclick="setFilter('critical', this)">Critical</button>
+    <button class="filter-btn"        data-sev="high"     onclick="setFilter('high',     this)">High</button>
+    <button class="filter-btn"        data-sev="medium"   onclick="setFilter('medium',   this)">Medium</button>
+    <button class="filter-btn"        data-sev="low"      onclick="setFilter('low',      this)">Low</button>
+    <input class="search-box" type="search" placeholder="Search rules or URLs…" oninput="applySearch(this.value)">
+  </div>
+
+  <!-- Findings table -->
+  <div class="findings-section">
+    <h2>Findings</h2>
+    {% if findings %}
+    <table id="findings-table">
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Rule</th>
+          <th>Source</th>
+          <th>Line</th>
+          <th>Match</th>
+          <th>Context</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in findings %}
+        <tr class="finding-row" data-severity="{{ f.severity }}" data-rule="{{ f.rule_name|lower }}" data-url="{{ f.source_url|lower }}">
+          <td><span class="badge {{ f.severity }}">{{ f.severity }}</span></td>
+          <td>
+            <strong>{{ f.rule_name }}</strong><br>
+            <span style="font-size:11px;color:#57606a;">{{ f.rule_id }}</span>
+          </td>
+          <td class="src-url">
+            <a href="{{ f.source_url }}" target="_blank" rel="noopener noreferrer" title="{{ f.source_url }}">
+              {{ f.source_url | truncate(60, True, '…') }}
+            </a>
+            <span class="source-pill">{{ f.source_type }}</span>
+          </td>
+          <td>{{ f.line_number if f.line_number else '—' }}</td>
+          <td class="match-cell">
+            <code class="match-code" title="{{ f.match }}">{{ f.match }}</code>
+          </td>
+          <td>
+            {% if f.context %}
+            <button class="ctx-toggle" onclick="toggleCtx(this)">Show context</button>
+            <div class="ctx-block">
+              <pre class="ctx">{{ f.context }}</pre>
+            </div>
+            {% else %}
+            <span style="color:#8b949e">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div id="no-results">No findings match the current filter.</div>
+    {% else %}
+    <div class="empty">
+      <div class="icon">✅</div>
+      <strong>No findings detected.</strong>
+      <p>No secrets or sensitive values were found on the scanned pages.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if errors %}
+  <details style="margin-top:16px;">
+    <summary style="cursor:pointer;font-size:13px;color:#57606a;">
+      {{ errors|length }} scan error(s)
+    </summary>
+    <ul style="margin-top:8px;padding-left:20px;font-size:13px;color:#cf222e;">
+      {% for err in errors %}
+      <li>{{ err }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+</div>
+
+<footer>
+  <p>Generated by <a href="https://github.com/superwes55/superwes55" target="_blank">SecretScope</a>
+  — authorized security testing only. Handle with care.</p>
+</footer>
+
+<script>
+  var currentSev = 'all';
+  var currentSearch = '';
+
+  function applyFilters() {
+    var rows = document.querySelectorAll('.finding-row');
+    var visible = 0;
+    rows.forEach(function(row) {
+      var sevMatch = currentSev === 'all' || row.dataset.severity === currentSev;
+      var searchMatch = currentSearch === '' ||
+        row.dataset.rule.includes(currentSearch) ||
+        row.dataset.url.includes(currentSearch);
+      if (sevMatch && searchMatch) {
+        row.classList.remove('hidden');
+        visible++;
+      } else {
+        row.classList.add('hidden');
+      }
+    });
+    var noRes = document.getElementById('no-results');
+    if (noRes) noRes.style.display = visible === 0 ? 'block' : 'none';
+  }
+
+  function setFilter(sev, el) {
+    currentSev = sev;
+    document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    if (el && el.classList.contains('filter-btn')) el.classList.add('active');
+    applyFilters();
+  }
+
+  function applySearch(val) {
+    currentSearch = val.toLowerCase();
+    applyFilters();
+  }
+
+  function toggleCtx(btn) {
+    var block = btn.nextElementSibling;
+    var open = block.classList.toggle('open');
+    btn.textContent = open ? 'Hide context' : 'Show context';
+  }
+</script>
+</body>
+</html>

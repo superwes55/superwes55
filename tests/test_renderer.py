@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -399,3 +400,271 @@ async def test_crawler_respects_max_pages(httpserver: object) -> None:
 
     pages = [c async for c in crawler.crawl(url)]
     assert len(pages) <= 3
+
+
+# ---------------------------------------------------------------------------
+# Renderer with mocked Playwright (covers render() body without a real browser)
+# ---------------------------------------------------------------------------
+
+def _make_playwright_mock(
+    html: str = "<html><body>test</body></html>",
+    inline_scripts: list[str] | None = None,
+    links: list[str] | None = None,
+) -> tuple[object, object]:
+    """Return (mock_pw_cm, mock_page) pair for patching async_playwright."""
+    captured_handlers: dict[str, object] = {}
+
+    def _fake_on(event: str, handler: object) -> None:
+        captured_handlers[event] = handler
+
+    mock_page = AsyncMock()
+    # page.on() is called without await in renderer, so it must be a plain MagicMock
+    mock_page.on = MagicMock(side_effect=_fake_on)
+    mock_page.goto = AsyncMock(return_value=None)
+    mock_page.content = AsyncMock(return_value=html)
+
+    # evaluate is called twice: inline scripts, then links
+    mock_page.evaluate = AsyncMock(side_effect=[
+        inline_scripts or [],
+        links or [],
+    ])
+
+    mock_context = AsyncMock()
+    mock_context.new_page = AsyncMock(return_value=mock_page)
+
+    mock_browser = AsyncMock()
+    mock_browser.new_context = AsyncMock(return_value=mock_context)
+    mock_browser.close = AsyncMock()
+
+    mock_pw = MagicMock()
+    mock_pw.chromium.launch = AsyncMock(return_value=mock_browser)
+
+    mock_pw_cm = AsyncMock()
+    mock_pw_cm.__aenter__ = AsyncMock(return_value=mock_pw)
+    mock_pw_cm.__aexit__ = AsyncMock(return_value=False)
+
+    return mock_pw_cm, mock_page, captured_handlers  # type: ignore[return-value]
+
+
+class TestRendererMocked:
+    @pytest.mark.asyncio
+    async def test_render_returns_page_content(self) -> None:
+        mock_pw_cm, _, _ = _make_playwright_mock("<html><body>hello</body></html>")
+        with patch("secretscope.fetcher.renderer.async_playwright", return_value=mock_pw_cm):
+            renderer = Renderer()
+            content = await renderer.render("https://example.com")
+        assert content.final_html == "<html><body>hello</body></html>"
+        assert content.page_url == "https://example.com"
+
+    @pytest.mark.asyncio
+    async def test_render_captures_inline_scripts(self) -> None:
+        scripts = ["console.log('hi');", "var x = 1;"]
+        mock_pw_cm, _, _ = _make_playwright_mock(inline_scripts=scripts)
+        with patch("secretscope.fetcher.renderer.async_playwright", return_value=mock_pw_cm):
+            content = await Renderer().render("https://example.com")
+        assert content.inline_scripts == scripts
+
+    @pytest.mark.asyncio
+    async def test_render_captures_extracted_links(self) -> None:
+        links = ["https://example.com/page2", "https://example.com/about"]
+        mock_pw_cm, _, _ = _make_playwright_mock(links=links)
+        with patch("secretscope.fetcher.renderer.async_playwright", return_value=mock_pw_cm):
+            content = await Renderer().render("https://example.com")
+        assert content.extracted_links == links
+
+    @pytest.mark.asyncio
+    async def test_render_captures_network_response(self) -> None:
+        mock_pw_cm, mock_page, captured = _make_playwright_mock()
+
+        async def _trigger_response(*args: object, **kwargs: object) -> None:
+            # Simulate a network response being fired
+            handler = captured.get("response")
+            if handler:
+                mock_resp = AsyncMock()
+                mock_resp.url = "https://example.com/app.js"
+                mock_resp.headers = {"content-type": "text/javascript"}
+                mock_resp.text = AsyncMock(return_value="var x = 1;")
+                await handler(mock_resp)  # type: ignore[operator]
+
+        mock_page.goto.side_effect = _trigger_response
+
+        with patch("secretscope.fetcher.renderer.async_playwright", return_value=mock_pw_cm):
+            content = await Renderer().render("https://example.com")
+
+        js_resources = [r for r in content.network_resources if "app.js" in r.url]
+        assert js_resources
+        assert js_resources[0].body == "var x = 1;"
+
+    @pytest.mark.asyncio
+    async def test_render_ignores_non_capturable_content_type(self) -> None:
+        mock_pw_cm, mock_page, captured = _make_playwright_mock()
+
+        async def _trigger_response(*args: object, **kwargs: object) -> None:
+            handler = captured.get("response")
+            if handler:
+                mock_resp = AsyncMock()
+                mock_resp.url = "https://example.com/image.png"
+                mock_resp.headers = {"content-type": "image/png"}
+                mock_resp.text = AsyncMock(return_value="binary")
+                await handler(mock_resp)  # type: ignore[operator]
+
+        mock_page.goto.side_effect = _trigger_response
+
+        with patch("secretscope.fetcher.renderer.async_playwright", return_value=mock_pw_cm):
+            content = await Renderer().render("https://example.com")
+
+        assert not any("image.png" in r.url for r in content.network_resources)
+
+    @pytest.mark.asyncio
+    async def test_render_captures_console_messages(self) -> None:
+        mock_pw_cm, mock_page, captured = _make_playwright_mock()
+
+        async def _trigger_console(*args: object, **kwargs: object) -> None:
+            handler = captured.get("console")
+            if handler:
+                msg = MagicMock()
+                msg.type = "log"
+                msg.text = "hello from console"
+                handler(msg)  # type: ignore[operator]
+
+        mock_page.goto.side_effect = _trigger_console
+
+        with patch("secretscope.fetcher.renderer.async_playwright", return_value=mock_pw_cm):
+            content = await Renderer().render("https://example.com")
+
+        assert any("hello from console" in m for m in content.console_messages)
+
+    @pytest.mark.asyncio
+    async def test_render_falls_back_on_goto_timeout(self) -> None:
+        """When networkidle goto fails, renderer retries with 'load'."""
+        from playwright._impl._errors import Error as PlaywrightError
+
+        mock_pw_cm, mock_page, _ = _make_playwright_mock()
+        call_count = 0
+
+        async def _flaky_goto(*args: object, **kwargs: object) -> None:
+            nonlocal call_count
+            call_count += 1
+            if kwargs.get("wait_until") == "networkidle":
+                raise PlaywrightError("Timeout exceeded")
+
+        mock_page.goto.side_effect = _flaky_goto
+
+        with patch("secretscope.fetcher.renderer.async_playwright", return_value=mock_pw_cm):
+            content = await Renderer().render("https://example.com")
+
+        assert call_count == 2  # first networkidle, then load fallback
+        assert content.final_html is not None
+
+
+# ---------------------------------------------------------------------------
+# Crawler with mocked renderer
+# ---------------------------------------------------------------------------
+
+class TestCrawlerMocked:
+    @pytest.mark.asyncio
+    async def test_crawl_single_page(self) -> None:
+        from secretscope.fetcher.crawler import Crawler
+        from secretscope.models import PageContent
+
+        page = PageContent(
+            page_url="https://example.com/",
+            final_html="<html></html>",
+            inline_scripts=[],
+            network_resources=[],
+            console_messages=[],
+            extracted_links=[],
+        )
+        mock_renderer = AsyncMock()
+        mock_renderer.render = AsyncMock(return_value=page)
+
+        crawler = Crawler(
+            renderer=mock_renderer,
+            max_depth=0,
+            max_pages=1,
+            concurrency=1,
+            rate_limit_delay=0,
+            respect_robots=False,
+        )
+        pages = [p async for p in crawler.crawl("https://example.com/")]
+        assert len(pages) == 1
+        assert pages[0].page_url == "https://example.com/"
+
+    @pytest.mark.asyncio
+    async def test_crawl_follows_same_origin_links(self) -> None:
+        from secretscope.fetcher.crawler import Crawler
+        from secretscope.models import PageContent
+
+        def _page(url: str, links: list[str]) -> PageContent:
+            return PageContent(
+                page_url=url,
+                final_html="<html></html>",
+                inline_scripts=[],
+                network_resources=[],
+                console_messages=[],
+                extracted_links=links,
+            )
+
+        pages_map = {
+            "https://example.com/": _page("https://example.com/", ["https://example.com/page2"]),
+            "https://example.com/page2": _page("https://example.com/page2", []),
+        }
+        mock_renderer = AsyncMock()
+        mock_renderer.render = AsyncMock(side_effect=lambda url: pages_map[url])
+
+        crawler = Crawler(
+            renderer=mock_renderer,
+            max_depth=1,
+            max_pages=10,
+            concurrency=1,
+            rate_limit_delay=0,
+            respect_robots=False,
+        )
+        visited = [p.page_url async for p in crawler.crawl("https://example.com/")]
+        assert "https://example.com/" in visited
+        assert "https://example.com/page2" in visited
+
+    @pytest.mark.asyncio
+    async def test_crawl_ignores_cross_origin_links(self) -> None:
+        from secretscope.fetcher.crawler import Crawler
+        from secretscope.models import PageContent
+
+        page = PageContent(
+            page_url="https://example.com/",
+            final_html="<html></html>",
+            inline_scripts=[],
+            network_resources=[],
+            console_messages=[],
+            extracted_links=["https://other-domain.com/evil"],
+        )
+        mock_renderer = AsyncMock()
+        mock_renderer.render = AsyncMock(return_value=page)
+
+        crawler = Crawler(
+            renderer=mock_renderer,
+            max_depth=2,
+            max_pages=10,
+            concurrency=1,
+            rate_limit_delay=0,
+            respect_robots=False,
+        )
+        visited = [p.page_url async for p in crawler.crawl("https://example.com/")]
+        assert all("other-domain.com" not in u for u in visited)
+
+    @pytest.mark.asyncio
+    async def test_crawl_renderer_exception_skipped(self) -> None:
+        from secretscope.fetcher.crawler import Crawler
+
+        mock_renderer = AsyncMock()
+        mock_renderer.render = AsyncMock(side_effect=RuntimeError("connection refused"))
+
+        crawler = Crawler(
+            renderer=mock_renderer,
+            max_depth=0,
+            max_pages=5,
+            concurrency=1,
+            rate_limit_delay=0,
+            respect_robots=False,
+        )
+        pages = [p async for p in crawler.crawl("https://example.com/")]
+        assert pages == []  # exception swallowed, no crash
