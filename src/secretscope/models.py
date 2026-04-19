@@ -64,6 +64,28 @@ class Finding:
 
 
 @dataclass
+class NetworkResource:
+    """A single network response body captured during page rendering."""
+
+    url: str
+    content_type: str
+    body: str
+    source_type: SourceType
+
+
+@dataclass
+class PageContent:
+    """Everything captured from rendering a single page."""
+
+    page_url: str
+    final_html: str
+    inline_scripts: list[str]
+    network_resources: list[NetworkResource]
+    console_messages: list[str]
+    extracted_links: list[str]
+
+
+@dataclass
 class ScanResult:
     target_url: str
     findings: list[Finding]

@@ -68,6 +68,9 @@ files = ["src/"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "integration: tests that launch a real Playwright browser (require `playwright install chromium`)",
+]
 
 [tool.coverage.run]
 source = ["src/secretscope"]
